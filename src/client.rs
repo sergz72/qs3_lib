@@ -52,8 +52,8 @@ pub fn client_encrypt(
     let mut data = aes_key.to_vec();
 
     // random nonce
-    let rng = rand::thread_rng();
-    let nonce = Aes256Gcm::generate_nonce(rng);
+    let mut rng = rand::thread_rng();
+    let nonce = Aes256Gcm::generate_nonce(&mut rng);
     data.extend_from_slice(nonce.as_slice());
 
     // adding request
@@ -62,7 +62,6 @@ pub fn client_encrypt(
     // adding sha256 hash
     add_hash(&mut data);
 
-    let mut rng = rand::thread_rng();
     let rsa_encrypted = key.encrypt(&mut rng, Pkcs1v15Encrypt, &data)
         .map_err(|e| Error::new(ErrorKind::Other, e.to_string()))?;
 
