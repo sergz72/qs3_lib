@@ -4,7 +4,7 @@ Client message structure (RSA encoded, maximum request data length ~ 430 bytes f
 |AES key - 32 bytes|AES gcm nonce - 12 bytes|Request data|sha256 of request data - 32 bytes|
 
 Request data for S3:
-|operation id (GET/PUT) - 1 byte|file name length - 1 byte|file name|s3 password length - 1 byte|s3 password|
+|operation id (GET/PUT) - 1 byte|file name length - 1 byte|file name|s3 password|
 
 Server message structure:
 |Response + sha256 of response data encrypted with AES-GCM|
@@ -69,7 +69,18 @@ mod tests {
     use rsa::RsaPrivateKey;
     use crate::client::{client_decrypt, client_encrypt};
     use crate::{build_private_key, load_key_file};
+    use crate::network::QHandler;
     use crate::server::packet_handler;
+
+    struct TestHandler {
+
+    }
+
+    impl QHandler for TestHandler {
+        fn handle(&self, data: &[u8]) -> Result<Option<Vec<u8>>, Error> {
+            Ok(Some(data.to_vec()))
+        }
+    }
 
     #[test]
     fn test_encryption() -> Result<(), Error> {
@@ -94,10 +105,8 @@ mod tests {
         -> Result<(), Error> {
         let (encrypted, aes_key, nonce) =
             client_encrypt(public_key, src_data.clone())?;
-        let response = packet_handler(&private_key, encrypted.as_slice(),
-                                      |in_data| {
-                                          Ok(Some(in_data.to_vec()))
-                                      })?;
+        let handler: Box<dyn QHandler> = Box::new(TestHandler{});
+        let response = packet_handler(&private_key, encrypted.as_slice(), &handler)?;
         assert!(response.is_some());
         let decrypted = client_decrypt(response.unwrap().as_slice(), aes_key, nonce)?;
         assert_eq!(decrypted, src_data);
@@ -106,7 +115,8 @@ mod tests {
 
     fn load_test_keys() -> Result<(String, RsaPrivateKey), Error> {
         let public_key = load_key_file("test_data/test_rsa.pem.pub")?;
-        let private_key = build_private_key(load_key_file("test_data/test_rsa.pem")?.as_str())?;
+        let private_key =
+            build_private_key(load_key_file("test_data/test_rsa.pem")?.as_str())?;
         Ok((public_key, private_key))
     }
 }

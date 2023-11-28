@@ -5,6 +5,7 @@ use aes_gcm::aead::consts::U12;
 use rsa::{Pkcs1v15Encrypt, RsaPrivateKey};
 use sha2::digest::generic_array::GenericArray;
 use crate::{add_hash, check_hash};
+use crate::network::QHandler;
 
 fn server_encrypt(mut data: Vec<u8>, cipher: Aes256Gcm, nonce: &GenericArray<u8, U12>) -> Result<Vec<u8>, Error> {
     add_hash(&mut data);
@@ -15,7 +16,7 @@ fn server_encrypt(mut data: Vec<u8>, cipher: Aes256Gcm, nonce: &GenericArray<u8,
 pub fn packet_handler(
     key: &RsaPrivateKey,
     data: &[u8],
-    handler: fn(data: &[u8]) -> Result<Option<Vec<u8>>, Error>
+    handler: &Box<dyn QHandler>
 ) -> Result<Option<Vec<u8>>, Error> {
     match key.decrypt(Pkcs1v15Encrypt, data) {
         Ok(request) => {
@@ -38,11 +39,11 @@ pub fn packet_handler(
 fn run_handler(
     data: &[u8],
     aes_key: [u8; 32],
-    handler: fn(data: &[u8]) -> Result<Option<Vec<u8>>, Error>,
+    handler: &Box<dyn QHandler>,
     nonce: &GenericArray<u8, U12>
 ) -> Result<Option<Vec<u8>>, Error> {
     let cipher = Aes256Gcm::new(&aes_key.into());
-    match handler(data) {
+    match handler.handle(data) {
         Ok(r) => {
             if let Some(response) = r {
                 match server_encrypt(response, cipher, nonce) {

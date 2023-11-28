@@ -4,6 +4,10 @@ use std::io::Error;
 use std::net::{SocketAddr, UdpSocket};
 use std::time::Duration;
 
+pub trait QHandler {
+    fn handle(&self, data: &[u8]) -> Result<Option<Vec<u8>>, Error>;
+}
+
 pub fn qsend_to(
     socket: UdpSocket,
     addr: SocketAddr,
@@ -27,7 +31,7 @@ pub fn qsend_to(
 pub fn qserver(
     private_key: &str,
     port: u16,
-    handler: fn(data: &[u8]) -> Result<Option<Vec<u8>>, Error>,
+    handler: Box<dyn QHandler>,
 ) -> Result<(), Error> {
     let key = build_private_key(private_key)?;
     let socket = UdpSocket::bind(SocketAddr::from(([0, 0, 0, 0], port)))?;
@@ -36,7 +40,7 @@ pub fn qserver(
     loop {
         let (n, src) = socket.recv_from(&mut buf)?;
         println!("Incoming packet with size {} from {}", n, src);
-        let data_to_send = packet_handler(&key, &buf[0..n], handler)?;
+        let data_to_send = packet_handler(&key, &buf[0..n], &handler)?;
         if let Some(data) = data_to_send {
             if let Err(e) = socket.send_to(data.as_slice(), src) {
                 println!("send error {}", e.to_string());
