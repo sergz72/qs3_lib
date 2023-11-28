@@ -9,6 +9,41 @@ use rsa::{Pkcs1v15Encrypt, RsaPublicKey};
 use crate::{add_hash, check_hash};
 use crate::network::qsend_to;
 
+pub struct ServerConfig {
+    host: String,
+    s3_secret: String
+}
+
+impl ServerConfig {
+    pub fn new(data: Vec<u8>) -> Result<ServerConfig, Error> {
+        let text =
+            String::from_utf8(data).map_err(|e| Error::new(ErrorKind::InvalidData, e.to_string()))?;
+        let lines: Vec<String> = text
+            .split('\n')
+            .map(|v| v.to_string().trim().to_string())
+            .collect();
+        if lines.len() < 2 {
+            return Err(Error::new(ErrorKind::InvalidData, "invalid server configuration file"));
+        }
+        Ok(ServerConfig{ host: lines[0].trim().to_string(), s3_secret: lines[1].trim().to_string()})
+    }
+
+    fn build_request(&self, method: u8, file_name: &String) -> Vec<u8> {
+        let mut request = Vec::new();
+        request.push(method);
+        request.push(file_name.len() as u8);
+        request.extend_from_slice(file_name.as_bytes());
+        request.extend_from_slice(self.s3_secret.as_bytes());
+        request
+    }
+
+    pub fn qsend(&self, rsa_key: &str, method: u8, file_name: &String, read_timeout: u64,
+                 retries: usize) -> Result<Vec<u8>, Error> {
+        let data = self.build_request(method, file_name);
+        qsend(rsa_key, &self.host, data, read_timeout, retries)
+    }
+}
+
 pub fn qsend(
     server_public_key: &str,
     host_name: &String,
