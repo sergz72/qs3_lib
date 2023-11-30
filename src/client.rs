@@ -1,5 +1,5 @@
 use std::io::{Error, ErrorKind};
-use std::net::{ToSocketAddrs, UdpSocket};
+use std::net::{SocketAddr, ToSocketAddrs, UdpSocket};
 use aes_gcm::{AeadCore, Aes256Gcm, KeyInit};
 use aes_gcm::aead::{Aead, Nonce};
 use pkcs8::DecodePublicKey;
@@ -57,7 +57,7 @@ pub fn qsend(
         .ok_or(Error::new(ErrorKind::Unsupported, "invalid address"))?;
     let (encrypted, aes_key, nonce) =
         client_encrypt(server_public_key, data)?;
-    let socket = UdpSocket::bind((addr.ip(), 0))?;
+    let socket = UdpSocket::bind(SocketAddr::from(([0,0,0,0], 0)))?;
     let response = qsend_to(socket, addr, encrypted, read_timeout, retries)?;
     client_decrypt(response.as_slice(), aes_key, nonce)
 }
