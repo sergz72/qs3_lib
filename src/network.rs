@@ -1,7 +1,7 @@
 use crate::server::packet_handler;
 use crate::{build_private_key, MAX_PACKET_LENGTH};
-use std::io::Error;
-use std::net::{SocketAddr, UdpSocket};
+use std::io::{Error, ErrorKind, Read, Write};
+use std::net::{SocketAddr, TcpListener, UdpSocket};
 use std::time::Duration;
 
 pub trait QHandler {
@@ -49,4 +49,46 @@ pub fn qserver(
             }
         }
     }
+}
+
+pub fn qserver_tcp(
+    private_key: &str,
+    port: u16,
+    handler: Box<dyn QHandler>,
+) -> Result<(), Error> {
+    let key = build_private_key(private_key)?;
+    let listener = TcpListener::bind(SocketAddr::from(([0, 0, 0, 0], port)))?;
+    println!("TCP server started on port {}", port);
+    let mut buf = [0; MAX_PACKET_LENGTH];
+    for stream in listener.incoming() {
+        match stream {
+            Ok(mut istream) => {
+                if let Ok(a) = istream.peer_addr() {
+                    println!("Connected to {}", a);
+                }
+                match istream.read(&mut buf) {
+                    Ok(n) => {
+                        if n == 0 {
+                            println!("Connection closed.");
+                            continue;
+                        }
+                        println!("Incoming packet with size {}", n);
+                        let data_to_send = packet_handler(&key, &buf[0..n], &handler)?;
+                        if let Some(data) = data_to_send {
+                            if let Err(e) = istream.write(data.as_slice()) {
+                                println!("send error {}", e.to_string());
+                            } else {
+                                println!("response sent.");
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        continue;
+                    }
+                }
+            }
+            Err(e) => return Err(e)
+        }
+    }
+    Err(Error::new(ErrorKind::ConnectionAborted, "no more incoming streams"))
 }
