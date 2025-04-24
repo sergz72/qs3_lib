@@ -82,7 +82,7 @@ pub fn qserver_tcp(
                             }
                         }
                     }
-                    Err(e) => {
+                    Err(_e) => {
                         continue;
                     }
                 }

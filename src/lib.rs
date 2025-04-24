@@ -85,19 +85,19 @@ mod tests {
     #[test]
     fn test_encryption() -> Result<(), Error> {
         let (public_key, private_key) = load_test_keys()?;
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let pk = public_key.as_str();
 
-        let src_data: Vec<u8> = (0..100).map(|_| rng.gen()).collect();
+        let src_data: Vec<u8> = (0..100).map(|_| rng.random()).collect();
         test_encryption_data(pk, &private_key, src_data)?;
 
-        let src_data: Vec<u8> = (0..200).map(|_| rng.gen()).collect();
+        let src_data: Vec<u8> = (0..200).map(|_| rng.random()).collect();
         test_encryption_data(pk, &private_key, src_data)?;
 
-        let src_data: Vec<u8> = (0..300).map(|_| rng.gen()).collect();
+        let src_data: Vec<u8> = (0..300).map(|_| rng.random()).collect();
         test_encryption_data(pk, &private_key, src_data)?;
 
-        let src_data: Vec<u8> = (0..420).map(|_| rng.gen()).collect();
+        let src_data: Vec<u8> = (0..420).map(|_| rng.random()).collect();
         test_encryption_data(pk, &private_key, src_data)
     }
 

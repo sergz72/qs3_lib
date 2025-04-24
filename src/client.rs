@@ -3,9 +3,10 @@ use std::net::{SocketAddr, ToSocketAddrs, UdpSocket};
 use aes_gcm::{AeadCore, Aes256Gcm, KeyInit};
 use aes_gcm::aead::{Aead, Nonce};
 use pkcs8::DecodePublicKey;
-use rand::RngCore;
 use rand::rngs::OsRng;
+use rand::TryRngCore;
 use rsa::{Pkcs1v15Encrypt, RsaPublicKey};
+use rsa::rand_core::{CryptoRng, RngCore};
 use crate::{add_hash, check_hash};
 use crate::network::qsend_to;
 
@@ -13,6 +14,28 @@ pub struct ServerConfig {
     host: String,
     s3_secret: String
 }
+
+struct Rng {}
+
+impl RngCore for Rng {
+    fn next_u32(&mut self) -> u32 {
+        OsRng.try_next_u32().unwrap()
+    }
+
+    fn next_u64(&mut self) -> u64 {
+        OsRng.try_next_u64().unwrap()
+    }
+
+    fn fill_bytes(&mut self, dest: &mut [u8]) {
+        OsRng.try_fill_bytes(dest).unwrap();
+    }
+
+    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), aes_gcm::aead::rand_core::Error> {
+        OsRng.try_fill_bytes(dest).map_err(|e|aes_gcm::aead::rand_core::Error::new(e))
+    }
+}
+
+impl CryptoRng for Rng {}
 
 impl ServerConfig {
     pub fn new(data: Vec<u8>) -> Result<ServerConfig, Error> {
@@ -83,11 +106,12 @@ pub fn client_encrypt(
 
     // random 32 byte AES key
     let mut aes_key = [0u8; 32];
-    OsRng.fill_bytes(&mut aes_key);
+    OsRng.try_fill_bytes(&mut aes_key)
+        .map_err(|e| Error::new(ErrorKind::Other, e))?;
     let mut data = aes_key.to_vec();
 
     // random nonce
-    let mut rng = rand::thread_rng();
+    let mut rng = Rng{};
     let nonce = Aes256Gcm::generate_nonce(&mut rng);
     data.extend_from_slice(nonce.as_slice());
 
